@@ -19,7 +19,9 @@ def parse_extended_mermaid(content: str) -> Dict[str, Any]:
     content_json = content_match.group(1).strip()
 
     # Parse the flowchart structure (extract nodes and edges)
-    nodes, edges = parse_mermaid_flowchart(flowchart_text)
+    node_data, edges = parse_mermaid_flowchart(flowchart_text)
+    nodes = node_data["nodes"]
+    active_nodes = node_data["active_nodes"]
 
     # Parse dependencies
     dependencies = parse_dependencies(dependencies_text)
@@ -35,14 +37,14 @@ def parse_extended_mermaid(content: str) -> Dict[str, Any]:
 
     # Process nodes
     processed_nodes = []
-    for node_id in nodes:
+    for node_id, node_info in nodes.items():
         if node_id not in content_data.get('nodes', {}):
             raise ValueError(f"Missing content for node: {node_id}")
 
         node_content = content_data['nodes'][node_id]
 
         # Extract position from the Mermaid layout or use defaults
-        position = extract_position(node_id, nodes)
+        position = extract_position(node_id, list(nodes.keys()))
 
         # Create node object
         processed_node = {
@@ -56,7 +58,7 @@ def parse_extended_mermaid(content: str) -> Dict[str, Any]:
                 "actions": node_content.get("actions"),
                 "questions": node_content.get("questions", [])
             },
-            "active": node_id in nodes.get("active_nodes", []),
+            "active": node_id in active_nodes,  # Set active flag based on Mermaid class
             "completed": False,
             "activates_nodes": dependencies.get(node_id, [])
         }
@@ -118,8 +120,9 @@ def parse_mermaid_flowchart(flowchart_text: str) -> Tuple[Dict[str, Any], List[D
         if class_name == "active":
             active_nodes.append(node_id)
 
-    nodes["active_nodes"] = active_nodes
-    return nodes, edges
+    active_node_list = active_nodes.copy()
+
+    return {"nodes": nodes, "active_nodes": active_node_list}, edges
 
 
 def parse_dependencies(dependencies_text: str) -> Dict[str, List[str]]:
