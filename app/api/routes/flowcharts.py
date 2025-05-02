@@ -1,8 +1,9 @@
 # app/api/routes/flowcharts.py
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.database.repositories.flowchart import FlowchartRepository
 from app.models.flowchart import KbCreate
 from app.services.flowchart import FlowchartService
 
@@ -26,6 +27,13 @@ async def get_flowchart(chart_id: int):
             detail="Flowchart not found"
         )
     return result
+
+
+@router.get("/", response_model=List[Dict])
+async def get_all_flowcharts():
+    """Get all flowcharts"""
+    charts = await FlowchartRepository.get_all_flowcharts()
+    return [chart.dict() for chart in charts]
 
 
 @router.put("/{chart_id}", response_model=Dict)

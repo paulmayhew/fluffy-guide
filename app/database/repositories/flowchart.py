@@ -77,3 +77,9 @@ class FlowchartRepository:
             "edges": edges,
             "dependencies": dependencies
         }
+
+    @staticmethod
+    async def get_all_flowcharts() -> list:
+        """Get all flowcharts without their related data"""
+        charts = await KbChart.find_all().to_list()
+        return charts
