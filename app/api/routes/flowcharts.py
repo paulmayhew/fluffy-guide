@@ -1,5 +1,4 @@
 # app/api/routes/flowcharts.py
-
 from typing import Dict, Any, List
 
 from beanie.odm.fields import PydanticObjectId
@@ -43,8 +42,6 @@ async def get_all_flowcharts():
     """Get all flowcharts"""
     charts = await FlowchartRepository.get_all_flowcharts()
 
-    # Instead of calling .dict(), which is causing the serialization error,
-    # manually convert PydanticObjectId fields to strings
     serialized_charts = []
     for chart in charts:
         # Convert to dict and then handle ObjectId fields
@@ -78,6 +75,7 @@ async def delete_flowchart(chart_id: int):
         )
 
 
+# Helper function to recursively convert ObjectIds to strings
 def _convert_objectids(obj):
     if isinstance(obj, dict):
         return {k: _convert_objectids(v) for k, v in obj.items()}
