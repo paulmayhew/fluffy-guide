@@ -1,13 +1,22 @@
 # app/api/routes/flowcharts.py
+
 from typing import Dict, Any, List
 
+from beanie.odm.fields import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
+from pydantic import PlainSerializer
+from typing_extensions import Annotated
 
 from app.database.repositories.flowchart import FlowchartRepository
 from app.models.flowchart import KbCreate
 from app.services.flowchart import FlowchartService
 
 router = APIRouter()
+
+SerializablePydanticObjectId = Annotated[
+    PydanticObjectId,
+    PlainSerializer(lambda oid: str(oid))
+]
 
 
 @router.post("/", response_model=Dict, status_code=status.HTTP_201_CREATED)
@@ -33,7 +42,17 @@ async def get_flowchart(chart_id: int):
 async def get_all_flowcharts():
     """Get all flowcharts"""
     charts = await FlowchartRepository.get_all_flowcharts()
-    return [chart.dict() for chart in charts]
+
+    # Instead of calling .dict(), which is causing the serialization error,
+    # manually convert PydanticObjectId fields to strings
+    serialized_charts = []
+    for chart in charts:
+        # Convert to dict and then handle ObjectId fields
+        chart_dict = chart.model_dump()
+        # Recursively convert any PydanticObjectId to string
+        serialized_charts.append(_convert_objectids(chart_dict))
+
+    return serialized_charts
 
 
 @router.put("/{chart_id}", response_model=Dict)
@@ -57,3 +76,14 @@ async def delete_flowchart(chart_id: int):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Flowchart not found"
         )
+
+
+def _convert_objectids(obj):
+    if isinstance(obj, dict):
+        return {k: _convert_objectids(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_objectids(item) for item in obj]
+    elif isinstance(obj, PydanticObjectId):
+        return str(obj)
+    else:
+        return obj
