@@ -43,18 +43,15 @@ class FlowchartRepository:
         for key, value in data.items():
             setattr(chart, key, value)
 
-        await chart.save()  # Beanie's save doesn't need parameters
+        await chart.save()
         return chart
 
     @staticmethod
     async def delete_flowchart(chart_id: int) -> bool:
-        """Delete a flowchart and all related data"""
-        # Delete related data
         await KbNode.find({"kb_chart_id": chart_id}).delete_many()
         await KbEdge.find({"kb_chart_id": chart_id}).delete_many()
         await KbDependency.find({"kb_chart_id": chart_id}).delete_many()
 
-        # Delete the chart
         result = await KbChart.find({"kb_id": chart_id}).delete_many()
         return result.deleted_count > 0
 
@@ -71,11 +68,16 @@ class FlowchartRepository:
         edges = await KbEdge.find({"kb_chart_id": chart_id}).to_list()
         dependencies = await KbDependency.find({"kb_chart_id": chart_id}).to_list()
 
+        chart_dict = chart.model_dump() if hasattr(chart, "dict") else {"error": "Failed to serialize chart"}
+        nodes_list = [node.model_dump() if hasattr(node, "dict") else node for node in nodes]
+        edges_list = [edge.model_dump() if hasattr(edge, "dict") else edge for edge in edges]
+        dependencies_list = [dep.model_dump() if hasattr(dep, "dict") else dep for dep in dependencies]
+
         return {
-            "chart": chart,
-            "nodes": nodes,
-            "edges": edges,
-            "dependencies": dependencies
+            "chart": chart_dict,
+            "nodes": nodes_list,
+            "edges": edges_list,
+            "dependencies": dependencies_list
         }
 
     @staticmethod
