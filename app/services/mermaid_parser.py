@@ -32,10 +32,9 @@ def parse_extended_mermaid(content: str) -> Dict[str, Any]:
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in content section: {e}")
 
-    # Create the final structure
     kb_chart_id = generate_chart_id()
+    node_ids = list(nodes.keys())
 
-    # Process nodes
     processed_nodes = []
     for node_id, node_info in nodes.items():
         if node_id not in content_data.get('nodes', {}):
@@ -43,8 +42,7 @@ def parse_extended_mermaid(content: str) -> Dict[str, Any]:
 
         node_content = content_data['nodes'][node_id]
 
-        # Extract position from the Mermaid layout or use defaults
-        position = extract_position(node_id, list(nodes.keys()))
+        position = extract_position(node_id, node_ids)
 
         # Create node object
         processed_node = {
@@ -146,21 +144,25 @@ def parse_dependencies(dependencies_text: str) -> Dict[str, List[str]]:
     return dependencies
 
 
-def extract_position(node_id: str, nodes: Dict[str, Any]) -> Dict[str, float]:
+def extract_position(node_id: str, nodes_list: List[str]) -> Dict[str, float]:
     """
     Extract position from Mermaid data or assign defaults.
-    In a real implementation, you might use a Mermaid renderer to get actual positions.
+    Takes a list of node IDs rather than the nodes dictionary.
     """
-    # For simplicity, we'll just assign some default positions
-    # In a real implementation, you could use a more sophisticated approach
-    node_ids = list(nodes.keys())
-    if "active_nodes" in node_ids:
-        node_ids.remove("active_nodes")
+    # Simple grid layout algorithm
+    index = nodes_list.index(node_id) if node_id in nodes_list else 0
 
-    index = node_ids.index(node_id) if node_id in node_ids else 0
+    # Calculate position in a grid-like layout
+    columns = 3  # Number of columns in the grid
+    x_spacing = 300  # Horizontal spacing between nodes
+    y_spacing = 200  # Vertical spacing between nodes
+
+    x = 200 + (index % columns) * x_spacing
+    y = 100 + (index // columns) * y_spacing
+
     return {
-        "x": 200 + (index % 3) * 300,
-        "y": 100 + (index // 3) * 200
+        "x": float(x),
+        "y": float(y)
     }
 
 
