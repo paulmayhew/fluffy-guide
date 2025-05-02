@@ -4,59 +4,83 @@ from typing import Dict, List, Tuple, Any
 
 
 def parse_extended_mermaid(content: str) -> Dict[str, Any]:
-    """Parse an extended Mermaid flowchart with content metadata."""
+    """
+    Parse an extended Mermaid flowchart with content metadata.
 
-    # Split the content into sections
-    flowchart_match = re.search(r'%%FLOWCHART\n(.*?)(?=%%|$)', content, re.DOTALL)
-    dependencies_match = re.search(r'%%DEPENDENCIES\n(.*?)(?=%%|$)', content, re.DOTALL)
-    content_match = re.search(r'%%CONTENT\n(.*?)(?=%%|$)', content, re.DOTALL)
+    Args:
+        content (str): The extended Mermaid format string with flowchart, dependencies, and content sections
 
-    if not flowchart_match or not dependencies_match or not content_match:
-        raise ValueError("Invalid format: missing required sections")
+    Returns:
+        Dict[str, Any]: A structured dictionary with chart, nodes and edges data
 
-    flowchart_text = flowchart_match.group(1).strip()
-    dependencies_text = dependencies_match.group(1).strip()
-    content_json = content_match.group(1).strip()
+    Raises:
+        ValueError: If the format is invalid or required data is missing
+    """
+    # Extract the three main sections using regex
+    section_patterns = {
+        "flowchart": r'%%FLOWCHART\n(.*?)(?=%%|$)',
+        "dependencies": r'%%DEPENDENCIES\n(.*?)(?=%%|$)',
+        "content": r'%%CONTENT\n(.*?)(?=%%|$)'
+    }
 
-    # Parse the flowchart structure (extract nodes and edges)
-    node_data, edges = parse_mermaid_flowchart(flowchart_text)
+    sections = {}
+    for key, pattern in section_patterns.items():
+        match = re.search(pattern, content, re.DOTALL)
+        if not match:
+            raise ValueError(f"Invalid format: missing required {key} section")
+        sections[key] = match.group(1).strip()
+
+    # Parse the flowchart structure
+    node_data, edges = parse_mermaid_flowchart(sections["flowchart"])
     nodes = node_data["nodes"]
     active_nodes = node_data["active_nodes"]
 
     # Parse dependencies
-    dependencies = parse_dependencies(dependencies_text)
+    dependencies = parse_dependencies(sections["dependencies"])
 
     # Parse content JSON
     try:
-        content_data = json.loads(content_json)
+        content_data = json.loads(sections["content"])
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in content section: {e}")
 
+    # Validate required fields in content
+    if "title" not in content_data:
+        content_data["title"] = "Untitled Flowchart"
+    if "description" not in content_data:
+        content_data["description"] = ""
+    if "nodes" not in content_data:
+        raise ValueError("Missing 'nodes' object in content section")
+
+    # Generate a unique ID for this flowchart
     kb_chart_id = generate_chart_id()
     node_ids = list(nodes.keys())
 
+    # Process nodes
     processed_nodes = []
     for node_id, node_info in nodes.items():
+        # Verify node content exists
         if node_id not in content_data.get('nodes', {}):
             raise ValueError(f"Missing content for node: {node_id}")
 
         node_content = content_data['nodes'][node_id]
 
+        # Calculate node position
         position = extract_position(node_id, node_ids)
 
-        # Create node object
+        # Create structured node object
         processed_node = {
             "node_id": node_id,
             "kb_chart_id": kb_chart_id,
             "type": "custom",
             "position": position,
             "content": {
-                "title": node_content.get("title", ""),
+                "title": node_content.get("title", node_info.get("label", "")),
                 "description": node_content.get("description", ""),
                 "actions": node_content.get("actions"),
                 "questions": node_content.get("questions", [])
             },
-            "active": node_id in active_nodes,  # Set active flag based on Mermaid class
+            "active": node_id in active_nodes,
             "completed": False,
             "activates_nodes": dependencies.get(node_id, [])
         }
@@ -66,6 +90,10 @@ def parse_extended_mermaid(content: str) -> Dict[str, Any]:
     # Process edges
     processed_edges = []
     for edge in edges:
+        # Validate edge source and target
+        if edge['source'] not in node_ids or edge['target'] not in node_ids:
+            continue  # Skip invalid edges
+
         processed_edge = {
             "edge_id": f"e{edge['source']}-{edge['target']}",
             "kb_chart_id": kb_chart_id,
@@ -76,9 +104,12 @@ def parse_extended_mermaid(content: str) -> Dict[str, Any]:
 
     # Create the final structure
     result = {
+        "kb_id": kb_chart_id,  # Add the ID at the top level
+        "title": content_data.get("title", "Untitled Flowchart"),  # Add title at top level
+        "description": content_data.get("description", ""),  # Add description at top level
         "chart": {
             "kb_id": kb_chart_id,
-            "title": content_data.get("title", "Flowchart"),
+            "title": content_data.get("title", "Untitled Flowchart"),
             "description": content_data.get("description", "")
         },
         "nodes": processed_nodes,
